@@ -83,18 +83,18 @@ docker compose -f compose.yaml `
   config > docker-compose-nr.yaml
 ```
 
-## 5.1.2 Run
+### 5.1.2 Run
 
 `docker compose -f docker-compose-nr.yaml up -d`
 
-## 5.1.3 Manual installtion
+### 5.1.3 Manual installtion
 
 - Go into `backend` container
 - `bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=admin --install-app erpnext --set-default frontend`
   - Make sure the passwords are correct.
 - `bench --site frontend install-app hrms`
 
-# 5.2 Automatic installation
+## 5.2 Automatic installation
 
 - I used docker compose from `https://github.com/vibeconn/erpnext-custom` and just change the docker image to `nnnpooh/erpnext:1.0.1` and it works perfectly.
 - You can just run it from `docker compose -f docker-compose-hrms.yaml up -d`.
