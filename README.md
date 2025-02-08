@@ -96,7 +96,7 @@ docker compose -f compose.yaml `
 
 ## 5.2 Automatic installation
 
-- I used docker compose from `https://github.com/vibeconn/erpnext-custom` and just change the docker image to `nnnpooh/erpnext:1.0.1` and it works perfectly.
+- I used docker compose from `https://github.com/vibeconn/erpnext-custom` and just changed the docker image to `nnnpooh/erpnext:1.0.1` and it works perfectly.
 - You can just run it from `docker compose -f docker-compose-hrms.yaml up -d`.
   - Change the docker image as needed.
 
