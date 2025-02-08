@@ -49,7 +49,6 @@ $file_path="./app.json"
 $content = Get-Content -Path $file_path -Raw
 $byte_array = [System.Text.Encoding]::UTF8.GetBytes($content)
 $APPS_JSON_BASE64 = [System.Convert]::ToBase64String($byte_array)
-$env:APPS_JSON_BASE64=$APPS_JSON_BASE64
 ```
 
 ## 3. Build docker image
@@ -63,7 +62,7 @@ docker build `
   --file=images/layered/Containerfile .
 ```
 
-- Note that I used `--file-images/layered/Containerfile`, not `--file=images/custom/Containerfile`
+- Note that I used `--file-images/layered/Containerfile`, not `--file=images/custom/Containerfile`. This is faster to build.
 
 ## 4. Push to dockerhub
 
