@@ -1,90 +1,106 @@
-[![Build Stable](https://github.com/frappe/frappe_docker/actions/workflows/build_stable.yml/badge.svg)](https://github.com/frappe/frappe_docker/actions/workflows/build_stable.yml)
-[![Build Develop](https://github.com/frappe/frappe_docker/actions/workflows/build_develop.yml/badge.svg)](https://github.com/frappe/frappe_docker/actions/workflows/build_develop.yml)
+# Steps to build custom image in Powershell
 
-Everything about [Frappe](https://github.com/frappe/frappe) and [ERPNext](https://github.com/frappe/erpnext) in containers.
+Source: https://discuss.frappe.io/t/how-to-install-hrms-in-docker-version/105677/16
 
-# Getting Started
+## 1. Prepare files
 
-To get started you need [Docker](https://docs.docker.com/get-docker/), [docker-compose](https://docs.docker.com/compose/), and [git](https://docs.github.com/en/get-started/getting-started-with-git/set-up-git) setup on your machine. For Docker basics and best practices refer to Docker's [documentation](http://docs.docker.com).
+### `app.json`
 
-Once completed, chose one of the following two sections for next steps.
+```
+[
+  {
+    "url": "https://github.com/frappe/erpnext",
+    "branch": "version-15"
+  },
 
-### Try in Play With Docker
-
-To play in an already set up sandbox, in your browser, click the button below:
-
-<a href="https://labs.play-with-docker.com/?stack=https://raw.githubusercontent.com/frappe/frappe_docker/main/pwd.yml">
-  <img src="https://raw.githubusercontent.com/play-with-docker/stacks/master/assets/images/button.png" alt="Try in PWD"/>
-</a>
-
-### Try on your Dev environment
-
-First clone the repo:
-
-```sh
-git clone https://github.com/frappe/frappe_docker
-cd frappe_docker
+  {
+    "url": "https://github.com/frappe/hrms",
+    "branch": "version-15"
+  }
+]
 ```
 
-Then run: `docker compose -f pwd.yml up -d`
+### `.env`
 
-### To run on ARM64 architecture follow this instructions
+- Copy from `example.env`
+  - Note that I set `DB_PASSWORD=admin`.
+- Fill in the information below (adjust the information according to `[username]/[repo_name]`. Mine is `nnnpooh/erpnext`.)
 
-After cloning the repo run this command to build multi-architecture images specifically for ARM64.
+```
+CUSTOM_IMAGE='nnnpooh/erpnext'
+CUSTOM_TAG='1.0.1'
+```
 
-`docker buildx bake --no-cache --set "*.platform=linux/arm64"`
+### `nginx-entrypoint.sh`
 
-and then
+- https://github.com/frappe/frappe_docker/issues/1292#issuecomment-2275703399
+- Save on UTF8 and LF instead of CRLF.
 
-- add `platform: linux/arm64` to all services in the pwd.yaml
-- replace the current specified versions of erpnext image on `pwd.yml` with `:latest`
+## 2. Prepare Powershell session
 
-Then run: `docker compose -f pwd.yml up -d`
+- Inject variables into shell session
+  - Adjust `$CUSTOM_IMAGE` and `$CUSTOM_TAG` accordingly.
 
-## Final steps
+```
+$CUSTOM_IMAGE='nnnpooh/erpnext'
+$CUSTOM_TAG='1.0.1'
+$DOCKER_IMAGE_NAME=-join($CUSTOM_IMAGE,":",$CUSTOM_TAG)
+$file_path="./app.json"
+$content = Get-Content -Path $file_path -Raw
+$byte_array = [System.Text.Encoding]::UTF8.GetBytes($content)
+$APPS_JSON_BASE64 = [System.Convert]::ToBase64String($byte_array)
+$env:APPS_JSON_BASE64=$APPS_JSON_BASE64
+```
 
-Wait for 5 minutes for ERPNext site to be created or check `create-site` container logs before opening browser on port 8080. (username: `Administrator`, password: `admin`)
+## 3. Build docker image
 
-If you ran in a Dev Docker environment, to view container logs: `docker compose -f pwd.yml logs -f create-site`. Don't worry about some of the initial error messages, some services take a while to become ready, and then they go away.
+```
+docker build `
+  --build-arg=FRAPPE_PATH=https://github.com/frappe/frappe `
+  --build-arg=FRAPPE_BRANCH=version-15 `
+  --build-arg=APPS_JSON_BASE64=$APPS_JSON_BASE64 `
+  --tag=$DOCKER_IMAGE_NAME `
+  --file=images/layered/Containerfile .
+```
 
-# Documentation
+- Note that I used `--file-images/layered/Containerfile`, not `--file=images/custom/Containerfile`
 
-### [Frequently Asked Questions](https://github.com/frappe/frappe_docker/wiki/Frequently-Asked-Questions)
+## 4. Push to dockerhub
 
-### [Production](#production)
+- Create repository in dockerhub with the name specified in `$CUSTOM_IMAGE`.
+- `docker login`
+- `docker push $DOCKER_IMAGE_NAME`
 
-- [List of containers](docs/list-of-containers.md)
-- [Single Compose Setup](docs/single-compose-setup.md)
-- [Environment Variables](docs/environment-variables.md)
-- [Single Server Example](docs/single-server-example.md)
-- [Setup Options](docs/setup-options.md)
-- [Site Operations](docs/site-operations.md)
-- [Backup and Push Cron Job](docs/backup-and-push-cronjob.md)
-- [Port Based Multi Tenancy](docs/port-based-multi-tenancy.md)
-- [Migrate from multi-image setup](docs/migrate-from-multi-image-setup.md)
-- [running on linux/mac](docs/setup_for_linux_mac.md)
-- [TLS for local deployment](docs/tls-for-local-deployment.md)
+## 5.1: Manual installation
 
-### [Custom Images](#custom-images)
+### 5.1.1 Prepare docker compose
 
-- [Custom Apps](docs/custom-apps.md)
-- [Custom Apps with podman](docs/custom-apps-podman.md)
-- [Build Version 10 Images](docs/build-version-10-images.md)
+```
+docker compose -f compose.yaml `
+  -f overrides/compose.mariadb.yaml `
+  -f overrides/compose.redis.yaml `
+  -f overrides/compose.noproxy.yaml `
+  config > docker-compose-nr.yaml
+```
 
-### [Development](#development)
+## 5.1.2 Run
 
-- [Development using containers](docs/development.md)
-- [Bench Console and VSCode Debugger](docs/bench-console-and-vscode-debugger.md)
-- [Connect to localhost services](docs/connect-to-localhost-services-from-containers-for-local-app-development.md)
+`docker compose -f docker-compose-nr.yaml up -d`
 
-### [Troubleshoot](docs/troubleshoot.md)
+## 5.1.3 Manual installtion
 
-# Contributing
+- Go into `backend` container
+- `bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=admin --install-app erpnext --set-default frontend`
+  - Make sure the passwords are correct.
+- `bench --site frontend install-app hrms`
 
-If you want to contribute to this repo refer to [CONTRIBUTING.md](CONTRIBUTING.md)
+# 5.2 Automatic installation
 
-This repository is only for container related stuff. You also might want to contribute to:
+- I used docker compose from `https://github.com/vibeconn/erpnext-custom` and just change the docker image to `nnnpooh/erpnext:1.0.1` and it works perfectly.
+- You can just run it from `docker compose -f docker-compose-hrms.yaml up -d`.
+  - Change the docker image as needed.
 
-- [Frappe framework](https://github.com/frappe/frappe#contributing),
-- [ERPNext](https://github.com/frappe/erpnext#contributing),
-- [Frappe Bench](https://github.com/frappe/bench).
+## 6. Remove (if needed)
+
+- `docker compose -f docker-compose-nr.yaml down -v`
+- `docker compose -f docker-compose-hrms.yaml down -v`
