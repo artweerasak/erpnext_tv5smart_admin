@@ -28,7 +28,7 @@ Source: https://discuss.frappe.io/t/how-to-install-hrms-in-docker-version/105677
 
 ```
 CUSTOM_IMAGE='nnnpooh/erpnext'
-CUSTOM_TAG='1.0.1'
+CUSTOM_TAG='1.0.2'
 ```
 
 ### `nginx-entrypoint.sh`
@@ -43,7 +43,7 @@ CUSTOM_TAG='1.0.1'
 
 ```
 $CUSTOM_IMAGE='nnnpooh/erpnext'
-$CUSTOM_TAG='1.0.1'
+$CUSTOM_TAG='1.0.2'
 $DOCKER_IMAGE_NAME=-join($CUSTOM_IMAGE,":",$CUSTOM_TAG)
 $file_path="./app.json"
 $content = Get-Content -Path $file_path -Raw
@@ -86,7 +86,7 @@ docker compose -f compose.yaml `
 
 `docker compose -f docker-compose-nr.yaml up -d`
 
-### 5.1.3 Manual installtion
+### 5.1.3 Manual installation
 
 - Go into `backend` container
 - `bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=admin --install-app erpnext --set-default frontend`
@@ -95,7 +95,7 @@ docker compose -f compose.yaml `
 
 ## 5.2 Automatic installation
 
-- I used docker compose from `https://github.com/vibeconn/erpnext-custom` and just changed the docker image to `nnnpooh/erpnext:1.0.1` and it works perfectly.
+- I used docker compose from `https://github.com/vibeconn/erpnext-custom` and just changed the docker image to `nnnpooh/erpnext:1.0.2` and it works perfectly.
 - You can just run it from `docker compose -f docker-compose-hrms.yaml up -d`.
   - Change the docker image as needed.
 
