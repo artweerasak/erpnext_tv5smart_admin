@@ -1,0 +1,63 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  db:
+    image: mariadb:10.6
+    container_name: erpnext-db
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_DATABASE: erpnext_db
+      MYSQL_USER: erpnext
+      MYSQL_PASSWORD: erpnext
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db-init:/docker-entrypoint-initdb.d
+    ports:
+      - "3306:3306"
+    networks:
+      - erpnext-network
+
+  redis:
+    image: redis:alpine
+    container_name: erpnext-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - erpnext-network
+
+  frappe:
+    image: frappe/erpnext:latest
+    container_name: erpnext-app
+    depends_on:
+      - db
+      - redis
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: erpnext_db
+      DB_USER: erpnext
+      DB_PASSWORD: erpnext
+      REDIS_CACHE: redis:6379/0
+      REDIS_QUEUE: redis:6379/1
+      SOCKETIO_PORT: 9000
+    volumes:
+      - ./apps:/home/frappe/frappe-bench/apps
+      - ./sites:/home/frappe/frappe-bench/sites
+      - ./logs:/home/frappe/frappe-bench/logs
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+    networks:
+      - erpnext-network
+    command: >
+      bash -c "
+        bench start
+      "
+
+volumes:
+  db_data:
+
+networks:
+  erpnext-network:
+    driver: bridge

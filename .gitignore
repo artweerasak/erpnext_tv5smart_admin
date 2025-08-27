@@ -1,0 +1,36 @@
+# .gitignore
+# Docker volumes
+sites/*/private/
+sites/*/logs/
+sites/*/locks/
+
+# Database files
+*.sql
+*.db
+
+# Logs
+logs/
+*.log
+
+# Node modules
+node_modules/
+**/node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml

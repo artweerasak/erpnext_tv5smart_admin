@@ -1,0 +1,22 @@
+# Dockerfile.dev
+FROM frappe/erpnext:latest
+
+USER root
+
+# ติดตั้ง development tools
+RUN apt-get update && apt-get install -y \
+    vim \
+    curl \
+    wget \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+USER frappe
+
+# ตั้งค่า development mode
+ENV DEVELOPER_MODE=1
+ENV FRAPPE_SITE=localhost
+
+EXPOSE 8000 9000
+
+CMD ["bench", "start"]
