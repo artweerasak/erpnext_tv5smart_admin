@@ -1,7 +1,6 @@
 services:
   backend:
     image: nnnpooh/erpnext:1.0.2
-    platform: linux/amd64
     deploy:
       restart_policy:
         condition: on-failure
@@ -11,7 +10,6 @@ services:
 
   configurator:
     image: nnnpooh/erpnext:1.0.2
-    platform: linux/amd64
     deploy:
       restart_policy:
         condition: none
@@ -40,7 +38,6 @@ services:
 
   create-site:
     image: nnnpooh/erpnext:1.0.2
-    platform: linux/amd64
     deploy:
       restart_policy:
         condition: none
@@ -93,7 +90,6 @@ services:
 
   frontend:
     image: nnnpooh/erpnext:1.0.2
-    platform: linux/amd64
     deploy:
       restart_policy:
         condition: on-failure
@@ -117,7 +113,6 @@ services:
 
   queue-long:
     image: nnnpooh/erpnext:1.0.2
-    platform: linux/amd64
     deploy:
       restart_policy:
         condition: on-failure
@@ -132,7 +127,6 @@ services:
 
   queue-short:
     image: nnnpooh/erpnext:1.0.2
-    platform: linux/amd64
     deploy:
       restart_policy:
         condition: on-failure
@@ -164,7 +158,6 @@ services:
 
   scheduler:
     image: nnnpooh/erpnext:1.0.2
-    platform: linux/amd64
     deploy:
       restart_policy:
         condition: on-failure
@@ -178,7 +171,6 @@ services:
 
   websocket:
     image: nnnpooh/erpnext:1.0.2
-    platform: linux/amd64
     deploy:
       restart_policy:
         condition: on-failure
