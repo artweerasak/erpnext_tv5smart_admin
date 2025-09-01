@@ -1,10 +1,6 @@
 services:
   backend:
-<<<<<<< HEAD
-    image: nnnpooh/erpnext:1.0.2
-=======
     image: frappe/erpnext:v15
->>>>>>> 284668fe6b4b884a0efcfc2881b6c4b8dab6700a
     deploy:
       restart_policy:
         condition: on-failure
@@ -13,11 +9,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   configurator:
-<<<<<<< HEAD
-    image: nnnpooh/erpnext:1.0.2
-=======
     image: frappe/erpnext:v15
->>>>>>> 284668fe6b4b884a0efcfc2881b6c4b8dab6700a
     deploy:
       restart_policy:
         condition: none
@@ -45,11 +37,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   create-site:
-<<<<<<< HEAD
-    image: nnnpooh/erpnext:1.0.2
-=======
     image: frappe/erpnext:v15
->>>>>>> 284668fe6b4b884a0efcfc2881b6c4b8dab6700a
     deploy:
       restart_policy:
         condition: none
@@ -101,11 +89,7 @@ services:
       - db-data:/var/lib/mysql
 
   frontend:
-<<<<<<< HEAD
-    image: nnnpooh/erpnext:1.0.2
-=======
     image: frappe/erpnext:v15
->>>>>>> 284668fe6b4b884a0efcfc2881b6c4b8dab6700a
     deploy:
       restart_policy:
         condition: on-failure
@@ -128,11 +112,7 @@ services:
       - "8080:8080"    
 
   queue-long:
-<<<<<<< HEAD
-    image: nnnpooh/erpnext:1.0.2
-=======
     image: frappe/erpnext:v15
->>>>>>> 284668fe6b4b884a0efcfc2881b6c4b8dab6700a
     deploy:
       restart_policy:
         condition: on-failure
@@ -146,11 +126,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   queue-short:
-<<<<<<< HEAD
-    image: nnnpooh/erpnext:1.0.2
-=======
     image: frappe/erpnext:v15
->>>>>>> 284668fe6b4b884a0efcfc2881b6c4b8dab6700a
     deploy:
       restart_policy:
         condition: on-failure
@@ -181,11 +157,7 @@ services:
       - redis-cache-data:/data
 
   scheduler:
-<<<<<<< HEAD
-    image: nnnpooh/erpnext:1.0.2
-=======
     image: frappe/erpnext:v15
->>>>>>> 284668fe6b4b884a0efcfc2881b6c4b8dab6700a
     deploy:
       restart_policy:
         condition: on-failure
@@ -198,11 +170,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   websocket:
-<<<<<<< HEAD
-    image: nnnpooh/erpnext:1.0.2
-=======
     image: frappe/erpnext:v15
->>>>>>> 284668fe6b4b884a0efcfc2881b6c4b8dab6700a
     deploy:
       restart_policy:
         condition: on-failure
