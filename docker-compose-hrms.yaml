@@ -67,6 +67,7 @@ services:
         echo "sites/common_site_config.json found";
         bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=admin --install-app erpnext --set-default frontend;
         bench --site frontend install-app hrms;
+        bench --site frontend install-app lending;
         bench --site frontend set-config -g server_script_enabled 1
 
   db:
