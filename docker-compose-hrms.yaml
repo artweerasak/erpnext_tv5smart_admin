@@ -1,31 +1,57 @@
+version: "3.8"
+
 services:
+  # Init service to install custom apps
+  app-installer:
+    image: frappe/erpnext:v15
+    command:
+      - bash
+      - -c
+      - |
+        echo "Installing HRMS app from Git..."
+        bench get-app --branch develop hrms
+        echo "HRMS app installation completed!"
+    volumes:
+      - apps:/home/frappe/frappe-bench/apps
+    
   backend:
     image: frappe/erpnext:v15
-    deploy:
-      restart_policy:
-        condition: on-failure
+    restart: unless-stopped
+    command: bash -c "cd /home/frappe/frappe-bench && bench use frontend && bench serve --port 8000"
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - apps:/home/frappe/frappe-bench/apps
+    ports:
+      - "0.0.0.0:8000:8000"
+    depends_on:
+      - app-installer
+      - db
+      - redis-cache
+      - redis-queue
 
   configurator:
     image: frappe/erpnext:v15
-    deploy:
-      restart_policy:
-        condition: none
+    restart: "no"
     entrypoint:
       - bash
       - -c
     # add redis_socketio for backward compatibility
     command:
       - >
+        echo "Listing available apps...";
+        ls -1 apps;
         ls -1 apps > sites/apps.txt;
+        echo "Available apps: $(cat sites/apps.txt | tr '\n' ' ')";
+        echo "Configuring database connection...";
         bench set-config -g db_host $$DB_HOST;
         bench set-config -gp db_port $$DB_PORT;
+        echo "Configuring Redis connections...";
         bench set-config -g redis_cache "redis://$$REDIS_CACHE";
         bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
         bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
         bench set-config -gp socketio_port $$SOCKETIO_PORT;
+        echo "Configuration completed successfully!";
     environment:
       DB_HOST: db
       DB_PORT: "3306"
@@ -35,12 +61,12 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+    depends_on:
+      - db
 
   create-site:
     image: frappe/erpnext:v15
-    deploy:
-      restart_policy:
-        condition: none
+    restart: "no"
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
@@ -65,10 +91,18 @@ services:
           fi
         done;
         echo "sites/common_site_config.json found";
+        echo "Creating new site 'frontend' with ERPNext and HRMS...";
         bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=admin --install-app erpnext --set-default frontend;
+        echo "Installing HRMS app...";
         bench --site frontend install-app hrms;
-        bench --site frontend install-app lending;
-        bench --site frontend set-config -g server_script_enabled 1
+        echo "Enabling server scripts...";
+        bench --site frontend set-config -g server_script_enabled 1;
+        echo "Site setup completed successfully with ERPNext and HRMS apps!"
+    depends_on:
+      - db
+      - redis-cache
+      - redis-queue
+      - configurator
 
   db:
     image: mariadb:11.2
@@ -76,9 +110,7 @@ services:
       test: mysqladmin ping -h localhost --password=admin
       interval: 1s
       retries: 15
-    deploy:
-      restart_policy:
-        condition: on-failure
+    restart: unless-stopped
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -91,17 +123,14 @@ services:
 
   frontend:
     image: frappe/erpnext:v15
-    deploy:
-      restart_policy:
-        condition: on-failure
+    restart: unless-stopped
     command: 
       - nginx-entrypoint.sh
-
     environment:
       BACKEND: backend:8000
       FRAPPE_SITE_NAME_HEADER: frontend
       SOCKETIO: websocket:9000
-      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+      UPSTREAM_REAL_IP_ADDRESS: 0.0.0.0
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
       UPSTREAM_REAL_IP_RECURSIVE: "off"
       PROXY_READ_TIMEOUT: 120
@@ -110,13 +139,13 @@ services:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
     ports:
-      - "8080:8080"    
+      - "0.0.0.0:8080:8080"    
+    depends_on:
+      - backend
 
   queue-long:
     image: frappe/erpnext:v15
-    deploy:
-      restart_policy:
-        condition: on-failure
+    restart: unless-stopped
     command:
       - bench
       - worker
@@ -125,13 +154,15 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - apps:/home/frappe/frappe-bench/apps
+    depends_on:
+      - backend
 
   queue-short:
     image: frappe/erpnext:v15
-    deploy:
-      restart_policy:
-        condition: on-failure
-    depends_on: ["backend"]      
+    restart: unless-stopped
+    depends_on: 
+      - backend      
     command:
       - bench
       - worker
@@ -140,47 +171,46 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - apps:/home/frappe/frappe-bench/apps
 
   redis-queue:
     image: redis:6.2-alpine
-    deploy:
-      restart_policy:
-        condition: on-failure
+    restart: unless-stopped
     volumes:
       - redis-queue-data:/data
 
   redis-cache:
     image: redis:6.2-alpine
-    deploy:
-      restart_policy:
-        condition: on-failure
+    restart: unless-stopped
     volumes:
       - redis-cache-data:/data
 
   scheduler:
     image: frappe/erpnext:v15
-    deploy:
-      restart_policy:
-        condition: on-failure
-    depends_on: ["backend"]      
+    restart: unless-stopped
+    depends_on: 
+      - backend      
     command:
       - bench
       - schedule
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+      - apps:/home/frappe/frappe-bench/apps
 
   websocket:
     image: frappe/erpnext:v15
-    deploy:
-      restart_policy:
-        condition: on-failure
+    restart: unless-stopped
     command:
       - node
       - /home/frappe/frappe-bench/apps/frappe/socketio.js
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
+    ports:
+      - "0.0.0.0:9000:9000"
+    depends_on:
+      - backend
 
 volumes:
   db-data:
@@ -188,3 +218,4 @@ volumes:
   redis-cache-data:
   sites:
   logs:
+  apps:
