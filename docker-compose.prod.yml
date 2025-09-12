@@ -1,0 +1,177 @@
+version: '3.8'
+
+services:
+  db:
+    image: mariadb:10.6
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-erpnext}
+      MYSQL_USER: ${DB_USER:-erpnext}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./config/mariadb.conf:/etc/mysql/mariadb.conf.d/mariadb.conf
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - erpnext_network
+
+  redis-cache:
+    image: redis:6.2-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_cache_data:/data
+    networks:
+      - erpnext_network
+
+  redis-queue:
+    image: redis:6.2-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_queue_data:/data
+    networks:
+      - erpnext_network
+
+  backend:
+    image: frappe/erpnext:v15.78.1
+    restart: unless-stopped
+    environment:
+      - DB_HOST=db
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
+      - FRAPPE_ENV=production
+    volumes:
+      - sites_data:/home/frappe/frappe-bench/sites
+      - logs_data:/home/frappe/frappe-bench/logs
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+    networks:
+      - erpnext_network
+
+  frontend:
+    image: frappe/erpnext:v15.78.1
+    restart: unless-stopped
+    command: ["nginx-entrypoint.sh"]
+    environment:
+      - BACKEND=backend:8000
+      - FRAPPE_SITE_NAME_HEADER=${SITE_NAME}
+      - SOCKETIO_PORT=9000
+      - UPSTREAM_REAL_IP_ADDRESS=127.0.0.1
+      - UPSTREAM_REAL_IP_RECURSIVE=off
+      - UPSTREAM_REAL_IP_HEADER=X-Forwarded-For
+      - FRAPPÉ_SITE_NAME_HEADER=${SITE_NAME}
+    volumes:
+      - sites_data:/home/frappe/frappe-bench/sites
+      - logs_data:/home/frappe/frappe-bench/logs
+    ports:
+      - "8081:8080"
+    depends_on:
+      - backend
+    networks:
+      - erpnext_network
+
+  websocket:
+    image: frappe/erpnext:v15.78.1
+    restart: unless-stopped
+    command: ["node", "/home/frappe/frappe-bench/apps/frappe/socketio.js"]
+    environment:
+      - REDIS_QUEUE=redis-queue:6379
+    volumes:
+      - sites_data:/home/frappe/frappe-bench/sites
+    depends_on:
+      - redis-queue
+    networks:
+      - erpnext_network
+
+  scheduler:
+    image: frappe/erpnext:v15.78.1
+    restart: unless-stopped
+    command: ["bench", "schedule"]
+    environment:
+      - DB_HOST=db
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
+    volumes:
+      - sites_data:/home/frappe/frappe-bench/sites
+      - logs_data:/home/frappe/frappe-bench/logs
+    depends_on:
+      - backend
+    networks:
+      - erpnext_network
+
+  queue-default:
+    image: frappe/erpnext:v15.78.1
+    restart: unless-stopped
+    command: ["bench", "worker", "--queue", "default"]
+    environment:
+      - DB_HOST=db
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
+    volumes:
+      - sites_data:/home/frappe/frappe-bench/sites
+      - logs_data:/home/frappe/frappe-bench/logs
+    depends_on:
+      - backend
+    networks:
+      - erpnext_network
+
+  queue-short:
+    image: frappe/erpnext:v15.78.1
+    restart: unless-stopped
+    command: ["bench", "worker", "--queue", "short"]
+    environment:
+      - DB_HOST=db
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
+    volumes:
+      - sites_data:/home/frappe/frappe-bench/sites
+      - logs_data:/home/frappe/frappe-bench/logs
+    depends_on:
+      - backend
+    networks:
+      - erpnext_network
+
+  queue-long:
+    image: frappe/erpnext:v15.78.1
+    restart: unless-stopped
+    command: ["bench", "worker", "--queue", "long"]
+    environment:
+      - DB_HOST=db
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - REDIS_CACHE=redis-cache:6379
+      - REDIS_QUEUE=redis-queue:6379
+    volumes:
+      - sites_data:/home/frappe/frappe-bench/sites
+      - logs_data:/home/frappe/frappe-bench/logs
+    depends_on:
+      - backend
+    networks:
+      - erpnext_network
+
+volumes:
+  db_data:
+    driver: local
+  redis_cache_data:
+    driver: local
+  redis_queue_data:
+    driver: local
+  sites_data:
+    driver: local
+  logs_data:
+    driver: local
+
+networks:
+  erpnext_network:
+    driver: bridge
