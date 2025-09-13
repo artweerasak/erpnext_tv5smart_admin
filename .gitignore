@@ -28,3 +28,32 @@ venv
 
 # NodeJS
 node_modules
+
+# Temporary and backup files
+*-backup.*
+*-temp.*
+*-old.*
+*.tmp
+*.bak
+
+# Duplicate docker-compose files
+docker-compose-*.yaml
+docker-compose-*.yml
+!docker-compose.prod.yml
+
+# Temporary scripts
+*-temp.sh
+*-backup.sh
+*-old.sh
+final_fix.sh
+fix_*.sh
+quick-*.sh
+ultimate-*.sh
+working-*.sh
+recovery-*.sh
+terminal-*.sh
+
+# Documentation backups
+*-PLAN.md
+*-FIXED.md
+restore-*.md
