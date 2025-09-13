@@ -18,7 +18,12 @@ development/*
 !.vscode/extensions.json
 
 # VS Code devcontainer
-.devcontainer
+.devcontainer/*-backup.*
+.devcontainer/*-old.*
+.devcontainer/*-complex.*
+.devcontainer/TROUBLESHOOTING.md
+.devcontainer/.env
+.devcontainer/setup.sh
 *.code-workspace
 
 # Python

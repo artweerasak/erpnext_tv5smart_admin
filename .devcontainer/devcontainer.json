@@ -1,0 +1,35 @@
+{
+  "name": "ERPNext Dev Container",
+  "dockerComposeFile": ["../compose.yaml"],
+  "service": "backend",
+  "remoteUser": "frappe",
+  "shutdownAction": "stopCompose",
+  
+  "forwardPorts": [8081, 8000, 9000],
+  "portsAttributes": {
+    "8081": {
+      "label": "ERPNext Web UI",
+      "onAutoForward": "openBrowser"
+    },
+    "8000": {
+      "label": "Backend API",
+      "onAutoForward": "silent"
+    },
+    "9000": {
+      "label": "SocketIO",
+      "onAutoForward": "silent"
+    }
+  },
+  
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-azuretools.vscode-docker"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
