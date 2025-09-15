@@ -1,0 +1,106 @@
+# Production Override for ERPNext v15 Custom Setup
+# Copy this to docker-compose.override.yaml for production deployment
+
+version: "3.7"
+
+services:
+  frontend:
+    restart: unless-stopped
+    environment:
+      - UPSTREAM_REAL_IP_ADDRESS=127.0.0.1
+      - UPSTREAM_REAL_IP_RECURSIVE=off
+      - UPSTREAM_REAL_IP_HEADER=X-Forwarded-For
+      - FRAPPE_SITE_NAME_HEADER=${SITE_NAME}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`${SITE_NAME}`)"
+    
+  backend:
+    restart: unless-stopped
+    environment:
+      - FRAPPE_SITE_NAME_HEADER=${SITE_NAME}
+    volumes:
+      - ./logs:/home/frappe/frappe-bench/logs:rw
+      - ./backups:/home/frappe/frappe-bench/sites/backups:rw
+    
+  db:
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ./backups/db:/var/lib/mysql-backup:rw
+    command: 
+      - mysqld
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+      - --innodb-file-format=Barracuda
+      - --innodb-file-per-table=1
+      - --innodb-large-prefix=1
+      - --max_allowed_packet=256M
+      - --innodb-buffer-pool-size=1G
+      - --query-cache-size=128M
+      - --query-cache-type=1
+    
+  redis-cache:
+    restart: unless-stopped
+    command: redis-server --maxmemory ${REDIS_MAXMEMORY:-256mb} --maxmemory-policy allkeys-lru
+    
+  redis-queue:
+    restart: unless-stopped
+    command: redis-server --maxmemory ${REDIS_MAXMEMORY:-256mb} --maxmemory-policy allkeys-lru
+    
+  scheduler:
+    restart: unless-stopped
+    
+  queue-default:
+    restart: unless-stopped
+    deploy:
+      replicas: ${WORKER_DEFAULT:-1}
+    
+  queue-short:
+    restart: unless-stopped 
+    deploy:
+      replicas: ${WORKER_SHORT:-1}
+    
+  queue-long:
+    restart: unless-stopped
+    deploy:
+      replicas: ${WORKER_LONG:-1}
+    
+  websocket:
+    restart: unless-stopped
+
+# Add backup service
+  backup:
+    image: tv5smart/erpnext-custom:v15
+    depends_on:
+      - db
+      - backend
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites:rw
+      - ./backups:/home/frappe/backups:rw
+    environment:
+      - SITE_NAME=${SITE_NAME}
+    command: >
+      bash -c "
+        while true; do
+          echo 'Starting backup at' $$(date)
+          bench --site ${SITE_NAME} backup --with-files --backup-path /home/frappe/backups
+          echo 'Backup completed at' $$(date)
+          sleep ${BACKUP_INTERVAL:-86400}
+        done
+      "
+    restart: unless-stopped
+    profiles:
+      - backup
+
+volumes:
+  sites:
+  logs:
+  
+networks:
+  default:
+    name: erpnext-network
