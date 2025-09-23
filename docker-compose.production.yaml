@@ -1,0 +1,221 @@
+# Production Docker Compose with Custom Data Restore
+# This file contains customized ERPNext setup with all custom doctypes and data
+# Usage: docker-compose -f docker-compose.production.yaml up -d
+
+version: "3.7"
+
+services:
+  frontend:
+    image: tv5smart/erpnext-custom:v15
+    restart: unless-stopped
+    command:
+      - nginx-entrypoint.sh
+    environment:
+      - BACKEND=backend:8000
+      - FRAPPE_SITE_NAME_HEADER=$${SITE_NAME}
+      - SOCKETIO=websocket:9000
+      - UPSTREAM_REAL_IP_ADDRESS=127.0.0.1
+      - UPSTREAM_REAL_IP_HEADER=X-Forwarded-For
+      - UPSTREAM_REAL_IP_RECURSIVE=off
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites:rw
+      - logs:/home/frappe/frappe-bench/logs:rw
+    ports:
+      - "${HTTP_PUBLISH_PORT:-80}:8080"
+    depends_on:
+      - backend
+      - websocket
+
+  backend:
+    image: tv5smart/erpnext-custom:v15
+    restart: unless-stopped
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites:rw
+      - logs:/home/frappe/frappe-bench/logs:rw
+      - ./backups:/home/frappe/backups:ro
+    environment:
+      - FRAPPE_SITE_NAME_HEADER=$${SITE_NAME}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+
+  websocket:
+    image: tv5smart/erpnext-custom:v15
+    restart: unless-stopped
+    command:
+      - node
+      - /home/frappe/frappe-bench/apps/frappe/socketio.js
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites:rw
+      - logs:/home/frappe/frappe-bench/logs:rw
+    depends_on:
+      - redis-cache
+      - redis-queue
+
+  queue-default:
+    image: tv5smart/erpnext-custom:v15
+    restart: unless-stopped
+    command:
+      - bench
+      - worker
+      - --queue
+      - default
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites:rw
+      - logs:/home/frappe/frappe-bench/logs:rw
+    depends_on:
+      - redis-queue
+      - redis-cache
+
+  queue-short:
+    image: tv5smart/erpnext-custom:v15
+    restart: unless-stopped
+    command:
+      - bench
+      - worker
+      - --queue
+      - short
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites:rw
+      - logs:/home/frappe/frappe-bench/logs:rw
+    depends_on:
+      - redis-queue
+      - redis-cache
+
+  queue-long:
+    image: tv5smart/erpnext-custom:v15
+    restart: unless-stopped
+    command:
+      - bench
+      - worker
+      - --queue
+      - long
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites:rw
+      - logs:/home/frappe/frappe-bench/logs:rw
+    depends_on:
+      - redis-queue
+      - redis-cache
+
+  scheduler:
+    image: tv5smart/erpnext-custom:v15
+    restart: unless-stopped
+    command:
+      - bench
+      - schedule
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites:rw
+      - logs:/home/frappe/frappe-bench/logs:rw
+    depends_on:
+      - redis-queue
+      - redis-cache
+
+  db:
+    image: mariadb:10.6
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+      - --innodb-file-format=Barracuda
+      - --innodb-file-per-table=1
+      - --innodb-large-prefix=1
+      - --max_allowed_packet=256M
+    environment:
+      MYSQL_ROOT_PASSWORD: $${DB_ROOT_PASSWORD:-admin}
+      MYSQL_DATABASE: frontend
+      MYSQL_USER: frontend  
+      MYSQL_PASSWORD: $${DB_PASSWORD:-admin}
+    volumes:
+      - db-data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: mysqladmin ping -h localhost --password=$${DB_ROOT_PASSWORD:-admin}
+      interval: 1s
+      retries: 15
+
+  redis-cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  redis-queue:
+    image: redis:7-alpine  
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  # Service สำหรับ restore ข้อมูลจาก backup
+  restore-data:
+    image: tv5smart/erpnext-custom:v15
+    profiles:
+      - restore
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites:rw
+      - ./backups/production:/home/frappe/backups:ro
+    environment:
+      - SITE_NAME=$${SITE_NAME:-frontend}
+      - DB_PASSWORD=$${DB_PASSWORD:-admin}
+      - ADMIN_PASSWORD=$${ADMIN_PASSWORD:-admin}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+      redis-queue:
+        condition: service_started
+    command: >
+      bash -c "
+        echo 'Starting data restore process...'
+        
+        # Wait for services
+        wait-for-it db:3306 --timeout=60
+        wait-for-it redis-cache:6379 --timeout=30
+        wait-for-it redis-queue:6379 --timeout=30
+        
+        cd /home/frappe/frappe-bench
+        
+        # Create new site if not exists
+        if [ ! -d sites/$${SITE_NAME} ]; then
+          echo 'Creating new site: $${SITE_NAME}'
+          bench new-site $${SITE_NAME} --admin-password=$${ADMIN_PASSWORD} --db-password=$${DB_PASSWORD} --no-mariadb-socket
+          
+          # Install required apps
+          bench --site $${SITE_NAME} install-app erpnext
+          bench --site $${SITE_NAME} install-app hrms
+          bench --site $${SITE_NAME} install-app crm  
+          bench --site $${SITE_NAME} install-app lending
+          bench --site $${SITE_NAME} install-app utility_billing
+        fi
+        
+        # Restore from backup if backup files exist
+        BACKUP_FILES=/home/frappe/backups
+        if [ -f $$BACKUP_FILES/20250924_002518-frontend-database.sql.gz ]; then
+          echo 'Restoring from backup...'
+          
+          # Copy backup files to site backup directory
+          cp $$BACKUP_FILES/* sites/$${SITE_NAME}/private/backups/
+          
+          # Restore database and files
+          bench --site $${SITE_NAME} restore $$BACKUP_FILES/20250924_002518-frontend-database.sql.gz --with-private-files --with-public-files
+          
+          echo 'Data restore completed successfully!'
+        else
+          echo 'No backup files found, using fresh installation'
+        fi
+        
+        # Set admin password
+        bench --site $${SITE_NAME} set-admin-password $${ADMIN_PASSWORD}
+        
+        echo 'Setup completed successfully!'
+      "
+
+volumes:
+  sites:
+  logs:
+  db-data:
